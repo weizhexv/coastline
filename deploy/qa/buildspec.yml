@@ -1,0 +1,24 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - aws --version
+      - aws eks update-kubeconfig --region eu-central-1 --name dghire-eks
+      - aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 525143545807.dkr.ecr.eu-central-1.amazonaws.com
+  pre_build:
+    commands:
+      - pip3 install awscli --upgrade --user
+  build:
+    commands:
+      - export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain dghire --domain-owner 525143545807 --query authorizationToken --output text`
+      - docker build -f deploy/qa/Dockerfile -t qa-coastline:$CODEBUILD_START_TIME . --build-arg GIT_USER=$gituser --build-arg GIT_PWD=$gitpwd
+      - docker tag qa-coastline:$CODEBUILD_START_TIME 525143545807.dkr.ecr.eu-central-1.amazonaws.com/qa-coastline:$CODEBUILD_START_TIME
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - docker push 525143545807.dkr.ecr.eu-central-1.amazonaws.com/qa-coastline:$CODEBUILD_START_TIME
+      - sed -i -e "s/\(525143545807.dkr.ecr.eu-central-1.amazonaws.com\/[^:]*:\)[a-z0-9_-]*/\1$CODEBUILD_START_TIME/g" deploy/qa/deployment.yml
+      - sed -i -e "s/ENV_GO_PROFILE/$profile/g" deploy/qa/deployment.yml
+      - kubectl apply -f deploy/qa/deployment.yml --namespace=qa

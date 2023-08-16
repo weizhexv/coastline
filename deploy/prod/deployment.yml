@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: coastline
+  name: coastline
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: coastline
+  strategy: {}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "19002"
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/monitor/prometheus"
+      labels:
+        app: coastline
+    spec:
+      containers:
+        - image: 525143545807.dkr.ecr.eu-central-1.amazonaws.com/coastline:v1
+          name: coastline
+          resources: {}
+          imagePullPolicy: Always
+          env:
+            - name: profile
+              value: "ENV_GO_PROFILE"
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '10'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '8'
+    alb.ingress.kubernetes.io/success-codes: '200'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '2'
+  creationTimestamp: null
+  labels:
+    app: coastline
+  name: coastline-service
+spec:
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 9989
+    - name: monitor
+      port: 19002
+      protocol: TCP
+      targetPort: 19002
+  selector:
+    app: coastline
+  type: ClusterIP
+status:
+  loadBalancer: {}
